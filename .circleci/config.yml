@@ -29,7 +29,15 @@ commands:
       install:
         type: steps
         default:
-          - run: sudo apt update && sudo apt install ccache
+          - run: |
+              sudo apt update
+              sudo apt install ccache
+              sudo dpkg --add-architecture i386
+              wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo apt-key add -
+              sudo apt-add-repository 'deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main'
+              sudo apt-get update
+              sudo apt-get install --install-recommends winehq-stable
+              wine --version
       before-script:
         type: steps
         default: []
