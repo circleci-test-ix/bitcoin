@@ -1,0 +1,233 @@
+version: 2.1
+
+# Import the compare-url orb so we can get the git commit range
+orbs:
+  compare-url: iynere/compare-url@1.2.0
+
+require_lint: &require_lint
+  requires:
+    - lint
+
+executors:
+  default-executor:    
+    machine:
+      image: ubuntu-1604:201903-01
+    environment:
+      CI_RETRY_EXE: ""
+      CACHE_ERR_MSG: "Error! Initial build successful, but not enough time remains to run later build stages and tests. Please manually re-run this job by using the travis restart button or asking a bitcoin maintainer to restart. The next run should not time out because the build cache has been saved."
+      
+  docker-executor:
+    docker:
+      - image: circleci/python:3.5.6-stretch
+
+commands:
+  default-build-steps:
+    parameters:
+      before-install:
+        type: steps
+        default: []
+      install:
+        type: steps
+        default:
+          - run: sudo apt update && sudo apt install ccache
+      before-script:
+        type: steps
+        default: []
+      script:
+        type: steps
+        default:
+          - run:
+              name: Script
+              command: |                
+                set -o errexit; source ./ci/test/00_setup_env.sh
+                set -o errexit; source ./ci/test/03_before_install.sh
+                set -o errexit; source ./ci/test/04_install.sh
+                set -o errexit; source ./ci/test/05_before_script.sh
+                export CONTINUE=1
+                if [ $SECONDS -gt 1200 ]; then export CONTINUE=0; fi  # Likely the depends build took very long
+                if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
+                if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_a.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
+                if [ $SECONDS -gt 2000 ]; then export CONTINUE=0; fi  # Likely the build took very long; The tests take about 1000s, so we should abort if we have less than 50*60-1000=2000s left
+                if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
+                if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_b.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
+      after-script:
+        type: steps
+        default:
+          - run: echo $TRAVIS_COMMIT_RANGE
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps-{{ .Environment.CIRCLE_JOB }}
+      - compare-url/reconstruct
+      - compare-url/use:
+          step-name: Update Travis commit range.
+          custom-logic: |
+            BRANCH_COMMIT="${COMMIT_RANGE##*.}"
+            TARGET_COMMIT="${COMMIT_RANGE%%.*}"
+            if ! MERGE_BASE="$(git merge-base "${BRANCH_COMMIT}" "${TARGET_COMMIT}" 2>/dev/null)"; then
+              git fetch --unshallow
+              MERGE_BASE="$(git merge-base "${BRANCH_COMMIT}" "${TARGET_COMMIT}")"
+            fi
+            echo 'export TRAVIS_COMMIT_RANGE='"$MERGE_BASE...$BRANCH_COMMIT" >> $BASH_ENV
+      - run:
+          name: Set Environment Variables
+          command: |
+            # Set the travis environment variables since they are used in various scripts
+            echo 'export BUILD_ID='"$CIRCLE_WORKFLOW_ID" >> $BASH_ENV
+            echo 'export CI="true"' >> $BASH_ENV
+            echo 'export TRAVIS='"$CIRCLECI" >> $BASH_ENV
+            echo 'export TRAVIS_BRANCH='"$CIRCLE_BRANCH" >> $BASH_ENV
+            echo 'export TRAVIS_BUILD_DIR='"$CIRCLE_WORKING_DIRECTORY" >> $BASH_ENV
+            echo 'export TRAVIS_JOB_ID='"$CIRCLE_BUILD_NUM" >> $BASH_ENV
+            echo 'export TRAVIS_JOB_NUMBER='"$CIRCLE_BUILD_NUM" >> $BASH_ENV
+            if [[ ! -z $CIRCLE_PULL_REQUEST ]]; then
+                echo 'export TRAVIS_PULL_REQUEST=false' >> $BASH_ENV
+            fi
+            echo 'export TRAVIS_COMMIT='"$CIRCLE_SHA1" >> $BASH_ENV
+            echo 'export TRAVIS_REPO_SLUG='"$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" >> $BASH_ENV
+      - steps: << parameters.before-install >>
+      - steps: << parameters.install >>
+      - steps: << parameters.before-script >>
+      - steps: << parameters.script >>
+      - steps: << parameters.after-script >>
+      - save_cache:
+          key: deps-{{ .Environment.CIRCLE_JOB }}
+          paths:
+            - depends/built
+            - depends/sdk-sources
+            - ~/.ccache
+
+jobs:
+  lint:
+    executor: docker-executor
+    steps:
+      - default-build-steps:
+          before-install:            
+            - run: sudo chown -R circleci:circleci /usr/local
+          install:
+            - run: set -o errexit; source ./ci/lint/04_install.sh
+          before-script:
+            - run: set -o errexit; source ./ci/lint/05_before_script.sh
+          script:
+            - run: set -o errexit; source ./ci/lint/06_script.sh
+  
+  extended-lint:
+    executor: docker-executor
+    steps:
+      - default-build-steps:
+          before-install:            
+            - run: sudo chown -R circleci:circleci /usr/local
+          install:
+            - run: set -o errexit; source ./ci/extended_lint/04_install.sh
+          before-script:
+            - run: set -o errexit; source ./ci/lint/05_before_script.sh
+          script:
+            - run: set -o errexit; source ./ci/extended_lint/06_script.sh
+
+  test_ARM:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_arm.sh"
+    steps:
+      - default-build-steps
+      
+  test_Win64:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_win64.sh"
+    steps:
+      - default-build-steps
+
+  test_32_bit:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_i686.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_bionic:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_qt5.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_trusty:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_trusty.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_xenial:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_tsan.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_bionic_no_depends_address_leak_sanitizers:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_asan.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_bionic_no_depends_fuzzer_address_sanitizers:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_fuzz.sh"
+    steps:
+      - default-build-steps
+
+  test_x86_64_bionic_no_wallet:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_amd64_nowallet.sh"
+    steps:
+      - default-build-steps
+
+  test_macOS_10_10:
+    executor: default-executor
+    environment:
+      FILE_ENV: "./ci/test/00_setup_env_mac.sh"
+    steps:
+      - default-build-steps      
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - lint          
+      - test_ARM:
+          <<: *require_lint
+      - test_Win64:
+          <<: *require_lint
+      - test_32_bit:
+          <<: *require_lint
+      - test_x86_64_bionic:
+          <<: *require_lint
+      - test_x86_64_trusty:
+          <<: *require_lint
+      - test_x86_64_xenial:
+          <<: *require_lint
+      - test_x86_64_bionic_no_depends_address_leak_sanitizers:
+          <<: *require_lint
+      - test_x86_64_bionic_no_depends_fuzzer_address_sanitizers:
+          <<: *require_lint
+      - test_x86_64_bionic_no_wallet:
+          <<: *require_lint
+      - test_macOS_10_10:
+          <<: *require_lint
+      - extended-lint:
+          requires:
+            - test_ARM
+            - test_Win64
+            - test_32_bit
+            - test_x86_64_bionic
+            - test_x86_64_trusty
+            - test_x86_64_xenial
+            - test_x86_64_bionic_no_depends_address_leak_sanitizers
+            - test_x86_64_bionic_no_depends_fuzzer_address_sanitizers
+            - test_x86_64_bionic_no_wallet
+            - test_macOS_10_10
