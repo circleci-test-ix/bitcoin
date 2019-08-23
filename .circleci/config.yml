@@ -38,18 +38,29 @@ commands:
         default:
           - run:
               name: Script
-              command: |                
+              command: |
+                echo "**** ONE"
                 set -o errexit; source ./ci/test/00_setup_env.sh
+                echo "**** TWO"
                 set -o errexit; source ./ci/test/03_before_install.sh
+                echo "**** THREE"
                 set -o errexit; source ./ci/test/04_install.sh
+                echo "**** FOUR"
                 set -o errexit; source ./ci/test/05_before_script.sh
+                echo "**** FIVE"
                 export CONTINUE=1
                 if [ $SECONDS -gt 1200 ]; then export CONTINUE=0; fi  # Likely the depends build took very long
+                echo "**** SIX"
                 if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
+                echo "**** SEVEN"
                 if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_a.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
+                echo "**** EIGHT"
                 if [ $SECONDS -gt 2000 ]; then export CONTINUE=0; fi  # Likely the build took very long; The tests take about 1000s, so we should abort if we have less than 50*60-1000=2000s left
+                echo "**** NINE"
                 if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
+                echo "**** TEN"
                 if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_b.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
+                echo "**** ELEVEN"
       after-script:
         type: steps
         default:
