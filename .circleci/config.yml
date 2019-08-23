@@ -39,6 +39,7 @@ commands:
           - run:
               name: Script
               command: |
+                export CC_FOR_BUILD=gcc                
                 echo "**** ONE"
                 set -o errexit; source ./ci/test/00_setup_env.sh
                 echo "**** TWO"
