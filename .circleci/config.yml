@@ -88,7 +88,7 @@ commands:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Environment.CIRCLE_JOB }}
+          key: deps-v1-{{ .Environment.CIRCLE_JOB }}
       - compare-url/reconstruct
       - compare-url/use:
           step-name: Update Travis commit range.
@@ -123,7 +123,7 @@ commands:
       - steps: << parameters.script >>
       - steps: << parameters.after-script >>
       - save_cache:
-          key: deps-{{ .Environment.CIRCLE_JOB }}
+          key: deps-v1-{{ .Environment.CIRCLE_JOB }}
           paths:
             - depends/built
             - depends/sdk-sources
