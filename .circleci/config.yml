@@ -77,7 +77,7 @@ commands:
                 date
                 if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
                 echo "**** TEN"
-                date
+                date                
                 if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_b.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
                 echo "**** ELEVEN"
                 date
@@ -111,6 +111,7 @@ commands:
             echo 'export TRAVIS_BUILD_DIR='"$CIRCLE_WORKING_DIRECTORY" >> $BASH_ENV
             echo 'export TRAVIS_JOB_ID='"$CIRCLE_BUILD_NUM" >> $BASH_ENV
             echo 'export TRAVIS_JOB_NUMBER='"$CIRCLE_BUILD_NUM" >> $BASH_ENV
+            echo 'export TRAVIS_BUILD_ID='"$CIRCLE_BUILD_NUM" >> $BASH_ENV
             if [[ ! -z $CIRCLE_PULL_REQUEST ]]; then
                 echo 'export TRAVIS_PULL_REQUEST=false' >> $BASH_ENV
             fi
