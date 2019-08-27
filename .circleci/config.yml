@@ -78,7 +78,7 @@ commands:
                 if [ $TRAVIS_REPO_SLUG = "circleci-test-ix/bitcoin" ]; then export CONTINUE=1; fi  # Whitelisted repo (90 minutes build time)
                 echo "**** TEN"
                 date
-                if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_b.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
+                #if [ $CONTINUE = "1" ]; then set -o errexit; source ./ci/test/06_script_b.sh; else set +o errexit; echo "$CACHE_ERR_MSG"; false; fi
                 echo "**** ELEVEN"
                 date
       after-script:
